@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Did you enjoy your ride?</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: transparent;
+    }
+
+    body {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .ride-widget {
+      position: relative;
+      width: 500px;
+      height: 350px;
+      background: radial-gradient(circle at top left, #1f2937, #020617);
+      border-radius: 22px;
+      padding: 16px 16px 42px;
+      color: #f9fafb;
+      box-shadow: 0 12px 25px rgba(0, 0, 0, 0.35);
+      overflow: hidden;
+      border: 1px solid rgba(148, 163, 184, 0.35);
+      cursor: default;
+    }
+
+    .ride-title {
+      font-size: 1.1rem;
+      font-weight: 600;
+      text-align: center;
+      margin: 0;
+      margin-bottom: 4px;
+      position: relative;
+      z-index: 2;
+    }
+
+    .ride-message {
+      position: relative;
+      z-index: 4; /* ensure message is above buttons */
+      text-align: center;
+      font-size: 0.9rem;
+      margin-top: 10px;
+      color: #bbf7d0;
+      opacity: 0;
+      transform: translateY(6px);
+      transition: opacity 0.25s ease-out, transform 0.25s ease-out;
+      pointer-events: none;
+      min-height: 1.2em;
+    }
+
+    .ride-message.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* Buttons */
+
+    .ride-widget button {
+      font-family: inherit;
+      border: none;
+      outline: none;
+      cursor: pointer;
+      border-radius: 999px;
+      padding: 8px 18px;
+      font-size: 0.85rem;
+      font-weight: 500;
+      transition:
+        background-color 0.15s ease-out,
+        box-shadow 0.15s ease-out,
+        transform 0.1s ease-out,
+        opacity 0.2s ease-out;
+    }
+
+    #yes-button,
+    #no-button {
+      position: absolute;
+      z-index: 2; /* below message text */
+      white-space: nowrap;
+    }
+
+    #yes-button {
+      background: linear-gradient(135deg, #22c55e, #4ade80);
+      color: #022c22;
+      box-shadow: 0 7px 15px rgba(34, 197, 94, 0.35);
+    }
+
+    #yes-button:hover:not(.yes-pressed) {
+      box-shadow: 0 9px 18px rgba(34, 197, 94, 0.45);
+      transform: translateY(-1px);
+    }
+
+    #yes-button.teleport-pop {
+      animation: yes-pop 0.1s ease-out;
+    }
+
+    @keyframes yes-pop {
+      0%   { transform: scale(1); }
+      50%  { transform: scale(0.9); }
+      100% { transform: scale(1.05); }
+    }
+
+    /* Strong "pressed" + frozen state for Yes after click */
+    #yes-button.yes-pressed {
+      background: linear-gradient(135deg, #14532d, #15803d);
+      box-shadow: inset 0 2px 0 rgba(21, 128, 61, 0.8),
+                  0 1px 3px rgba(15, 23, 42, 0.8);
+      transform: translateY(2px) scale(0.94);
+      color: #ecfdf5;
+      cursor: default;
+      border: 1px solid rgba(187, 247, 208, 0.9);
+    }
+
+    /* Fade-out utility for buttons when switching to star stage */
+    .faded-out {
+      opacity: 0;
+      transform: translateY(-4px);
+      pointer-events: none !important;
+    }
+
+    #no-button {
+      background: linear-gradient(135deg, #ef4444, #f97373);
+      color: #111827;
+      box-shadow: 0 5px 12px rgba(248, 113, 113, 0.45);
+      pointer-events: none; /* cannot be clicked or hovered */
+    }
+
+    #no-button.no-panic {
+      animation: no-panic 0.18s infinite;
+    }
+
+    @keyframes no-panic {
+      0%   { transform: translate3d(0, 0, 0); }
+      25%  { transform: translate3d(-1px, -1px, 0); }
+      50%  { transform: translate3d(1px, 0, 0); }
+      75%  { transform: translate3d(-1px, 1px, 0); }
+      100% { transform: translate3d(0, 0, 0); }
+    }
+
+    .reset-btn {
+      position: absolute;
+      bottom: 9px;
+      left: 12px;
+      padding: 4px 10px;
+      font-size: 0.65rem;
+      border-radius: 999px;
+      background: rgba(15, 23, 42, 0.9);
+      color: #e5e7eb;
+      border: 1px solid rgba(148, 163, 184, 0.7);
+      box-shadow: 0 4px 12px rgba(15, 23, 42, 0.6);
+      z-index: 5;
+    }
+
+    .reset-btn:hover {
+      background: rgba(30, 64, 175, 0.95);
+      border-color: rgba(191, 219, 254, 0.9);
+      transform: translateY(-1px);
+      box-shadow: 0 6px 15px rgba(15, 23, 42, 0.7);
+    }
+
+    .reset-btn:active {
+      transform: translateY(0);
+      box-shadow: 0 3px 8px rgba(15, 23, 42, 0.7);
+    }
+
+    /* Confetti for initial Yes click */
+
+    .confetti-piece {
+      position: absolute;
+      width: 5px;
+      height: 9px;
+      border-radius: 1px;
+      opacity: 0;
+      pointer-events: none;
+      z-index: 10;
+      animation: confetti-fall 0.7s ease-out forwards;
+    }
+
+    @keyframes confetti-fall {
+      0% {
+        opacity: 1;
+        transform: translate3d(0, 0, 0) rotate(0deg);
+      }
+      100% {
+        opacity: 0;
+        transform: translate3d(var(--tx, 0px), var(--ty, 40px), 0) rotate(var(--rot, 180deg));
+      }
+    }
+
+    /* Confetti rain from the top – slower, more pieces, ~1s to bottom then fade */
+    .confetti-piece.side-confetti {
+      width: 6px;
+      height: 10px;
+      animation: confetti-rain 3.5s ease-out forwards;
+    }
+
+    @keyframes confetti-rain {
+      0% {
+        opacity: 0;
+        transform: translate3d(0, -20px, 0) rotate(0deg);
+      }
+      10% {
+        opacity: 1;
+        transform: translate3d(0, 0, 0) rotate(calc(var(--rot) * 0.2));
+      }
+      80% {
+        /* roughly at bottom around the 1s mark (0.8 * 1.2s ≈ 1s) */
+        opacity: 1;
+        transform: translate3d(
+          var(--tx),
+          var(--ty),
+          0
+        ) rotate(calc(var(--rot) * 0.9));
+      }
+      100% {
+        opacity: 0;
+        transform: translate3d(
+          var(--tx),
+          var(--ty),
+          0
+        ) rotate(var(--rot));
+      }
+    }
+
+    /* Star rating stage */
+
+    .star-stage {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 10px;
+      margin-top: 24px;
+      opacity: 0;
+      transform: translateY(8px);
+      transition: opacity 0.3s ease, transform 0.3s ease;
+      pointer-events: none;
+      position: relative;
+      z-index: 3;
+    }
+
+    .star-stage.visible {
+      opacity: 1;
+      transform: translateY(0);
+      pointer-events: auto;
+    }
+
+    .star {
+      font-size: 3rem; /* big stars */
+      user-select: none;
+      transition: transform 0.15s ease, color 0.15s ease, text-shadow 0.15s ease;
+    }
+
+    /* First 4 stars: clearly preselected & locked-in */
+    .star.disabled {
+      color: #facc15;
+      opacity: 0.85;
+      cursor: not-allowed;
+      pointer-events: none;
+      text-shadow: 0 0 8px rgba(250, 204, 21, 0.9);
+      transform: scale(1.05);
+    }
+
+    .star.active-star {
+      color: #facc15;
+      text-shadow: 0 0 10px rgba(250, 204, 21, 1);
+      transform: scale(1.15);
+    }
+
+    /* 5th star: the only clickable one */
+    .star.clickable {
+      color: #fbbf24;
+      cursor: pointer;
+    }
+
+    .star.clickable:hover {
+      transform: scale(1.2) translateY(-2px);
+      text-shadow: 0 0 10px rgba(250, 204, 21, 0.9);
+    }
+  </style>
+</head>
+<body>
+  <div class="ride-widget" id="ride-widget">
+    <h2 class="ride-title">Did you enjoy your ride?</h2>
+    <div class="ride-message" id="ride-message"></div>
+
+    <button id="yes-button" type="button">Yes</button>
+    <button id="no-button" type="button">No</button>
+
+    <!-- Second-stage rating stars -->
+    <div id="star-stage" class="star-stage">
+      <span class="star disabled" data-star="1">★</span>
+      <span class="star disabled" data-star="2">★</span>
+      <span class="star disabled" data-star="3">★</span>
+      <span class="star disabled" data-star="4">★</span>
+      <span class="star clickable" data-star="5">★</span>
+    </div>
+
+    <button id="reset-button" class="reset-btn" type="button">Reset</button>
+  </div>
+
+  <script>
+    (function () {
+      const widget = document.getElementById("ride-widget");
+      const yesBtn = document.getElementById("yes-button");
+      const noBtn = document.getElementById("no-button");
+      const resetBtn = document.getElementById("reset-button");
+      const message = document.getElementById("ride-message");
+      const starStage = document.getElementById("star-stage");
+      const stars = Array.from(starStage.querySelectorAll(".star"));
+      const fifthStar = starStage.querySelector('[data-star="5"]');
+
+      const initialMessageText = "We’re so glad you enjoyed your ride!";
+      const ratingPromptText = "Please take the time to give us your rating!";
+      const thanksText = "Thanks for your feedback!";
+
+      let hasAnsweredYes = false;
+      let ratingGiven = false;
+      let starTimeoutId = null;
+
+      // Bounds and positions
+      let widgetWidth = 0;
+      let widgetHeight = 0;
+
+      let yesPos = { x: 0, y: 0 };
+      let noState = {
+        x: 0,
+        y: 0,
+        vx: 0,
+        vy: 0,
+        baseSpeed: 0.9,
+        panicSpeed: 2.0,
+        frozen: false
+      };
+
+      let noSize = { w: 0, h: 0 };
+      let yesSize = { w: 0, h: 0 };
+
+      const mouse = {
+        x: 0,
+        y: 0,
+        inside: false
+      };
+
+      function updateBounds() {
+        const rect = widget.getBoundingClientRect();
+        widgetWidth = rect.width;
+        widgetHeight = rect.height;
+        if (!yesSize.w || !yesSize.h) {
+          yesSize.w = yesBtn.offsetWidth;
+          yesSize.h = yesBtn.offsetHeight;
+        }
+        if (!noSize.w || !noSize.h) {
+          noSize.w = noBtn.offsetWidth;
+          noSize.h = noBtn.offsetHeight;
+        }
+      }
+
+      function centerButtons() {
+        updateBounds();
+        const cx = widgetWidth / 2;
+        const midY = widgetHeight * 0.55;
+
+        yesPos.x = cx - yesSize.w / 2;
+        yesPos.y = midY - yesSize.h - 6;
+        noState.x = cx - noSize.w / 2;
+        noState.y = midY + 6;
+
+        noState.vx = 0;
+        noState.vy = 0;
+
+        applyYesPosition();
+        applyNoPosition();
+      }
+
+      function applyYesPosition() {
+        yesBtn.style.left = yesPos.x + "px";
+        yesBtn.style.top = yesPos.y + "px";
+      }
+
+      function applyNoPosition() {
+        noBtn.style.left = noState.x + "px";
+        noBtn.style.top = noState.y + "px";
+      }
+
+      function createConfetti(x, y) {
+        const colors = ["#facc15", "#22c55e", "#3b82f6", "#f97316", "#ec4899", "#a855f7"];
+        const count = 24;
+        for (let i = 0; i < count; i++) {
+          const piece = document.createElement("div");
+          piece.className = "confetti-piece";
+          const dx = (Math.random() - 0.5) * 80;
+          const dy = 20 + Math.random() * 60;
+          const rot = (Math.random() - 0.5) * 360;
+
+          piece.style.left = x + "px";
+          piece.style.top = y + "px";
+          piece.style.backgroundColor = colors[i % colors.length];
+          piece.style.setProperty("--tx", dx + "px");
+          piece.style.setProperty("--ty", dy + "px");
+          piece.style.setProperty("--rot", rot + "deg");
+
+          widget.appendChild(piece);
+
+          piece.addEventListener("animationend", () => {
+            piece.remove();
+          });
+        }
+      }
+
+      // Confetti rain from the top for 5-star rating (slower, more pieces, ~1s fall)
+      function createSideConfetti() {
+        const colors = ["#facc15", "#22c55e", "#3b82f6", "#f97316", "#ec4899", "#a855f7"];
+        const totalPieces = 110; // more confetti
+
+        for (let i = 0; i < totalPieces; i++) {
+          const piece = document.createElement("div");
+          piece.className = "confetti-piece side-confetti";
+
+          const startX = Math.random() * widgetWidth;
+          const startY = -10 - Math.random() * 40; // just above the top
+          const dx = (Math.random() - 0.5) * 60;  // gentle sideways drift
+          const dy = widgetHeight - 50 + Math.random() * 30; // fall through most of widget
+          const rot = (Math.random() - 0.5) * 540;
+
+          piece.style.left = startX + "px";
+          piece.style.top = startY + "px";
+          piece.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+          piece.style.setProperty("--tx", dx + "px");
+          piece.style.setProperty("--ty", dy + "px");
+          piece.style.setProperty("--rot", rot + "deg");
+
+          widget.appendChild(piece);
+
+          piece.addEventListener("animationend", () => {
+            piece.remove();
+          });
+        }
+      }
+
+      function showStarStage() {
+        starStage.classList.add("visible");
+        message.textContent = ratingPromptText;
+      }
+
+      function scheduleStarStage() {
+        // 2–3 seconds after Yes; pick 2300ms
+        starTimeoutId = window.setTimeout(() => {
+          yesBtn.classList.add("faded-out");
+          noBtn.classList.add("faded-out");
+          showStarStage();
+        }, 2300);
+      }
+
+      function triggerYes(clickX, clickY) {
+        if (hasAnsweredYes) return;
+        hasAnsweredYes = true;
+
+        message.textContent = initialMessageText;
+        message.classList.add("visible");
+
+        // Freeze No button movement
+        noState.frozen = true;
+        noState.vx = 0;
+        noState.vy = 0;
+        noBtn.classList.remove("no-panic");
+
+        // Strong pressed state for Yes, freeze interaction & tweak text
+        yesBtn.classList.add("yes-pressed");
+        yesBtn.textContent = "Yes ✓";
+        yesBtn.disabled = true;
+        yesBtn.style.pointerEvents = "none";
+
+        createConfetti(clickX, clickY);
+        scheduleStarStage();
+      }
+
+      function teleportYesToCursor(event) {
+        const rect = widget.getBoundingClientRect();
+        const clickX = event.clientX - rect.left;
+        const clickY = event.clientY - rect.top;
+
+        updateBounds();
+
+        const padding = 8;
+        const minX = padding;
+        const minY = padding + 24; // keep away from very top edge
+        const maxX = widgetWidth - yesSize.w - padding;
+        const maxY = widgetHeight - yesSize.h - padding;
+
+        let targetX = clickX - yesSize.w / 2;
+        let targetY = clickY - yesSize.h / 2;
+
+        targetX = Math.min(Math.max(targetX, minX), maxX);
+        targetY = Math.min(Math.max(targetY, minY), maxY);
+
+        yesPos.x = targetX;
+        yesPos.y = targetY;
+        applyYesPosition();
+
+        // Tiny pop animation
+        yesBtn.classList.remove("teleport-pop");
+        void yesBtn.offsetWidth; // force reflow
+        yesBtn.classList.add("teleport-pop");
+
+        triggerYes(clickX, clickY);
+      }
+
+      // Main widget click handler
+      widget.addEventListener("click", (event) => {
+        // Ignore clicks on Reset to avoid accidental Yes teleport
+        if (resetBtn.contains(event.target)) return;
+        if (hasAnsweredYes) return;
+
+        teleportYesToCursor(event);
+      });
+
+      // Mouse tracking for No button dodging
+      widget.addEventListener("mousemove", (event) => {
+        const rect = widget.getBoundingClientRect();
+        mouse.x = event.clientX - rect.left;
+        mouse.y = event.clientY - rect.top;
+        mouse.inside = true;
+      });
+
+      widget.addEventListener("mouseleave", () => {
+        mouse.inside = false;
+        noBtn.classList.remove("no-panic");
+      });
+
+      function resetStars() {
+        ratingGiven = false;
+        starStage.classList.remove("visible");
+        stars.forEach(star => {
+          star.classList.remove("active-star");
+        });
+      }
+
+      // Reset behavior
+      resetBtn.addEventListener("click", (event) => {
+        event.stopPropagation();
+
+        hasAnsweredYes = false;
+        ratingGiven = false;
+
+        if (starTimeoutId !== null) {
+          clearTimeout(starTimeoutId);
+          starTimeoutId = null;
+        }
+
+        message.textContent = "";
+        message.classList.remove("visible");
+
+        yesBtn.classList.remove("yes-pressed");
+        yesBtn.classList.remove("faded-out");
+        yesBtn.textContent = "Yes";
+        yesBtn.disabled = false;
+        yesBtn.style.pointerEvents = "";
+
+        noBtn.classList.remove("faded-out");
+
+        noState.frozen = false;
+
+        resetStars();
+        centerButtons();
+      });
+
+      // Five-star click handling
+      fifthStar.addEventListener("click", (event) => {
+        event.stopPropagation();
+        if (!starStage.classList.contains("visible")) return;
+        if (ratingGiven) return;
+
+        ratingGiven = true;
+        fifthStar.classList.add("active-star");
+        message.textContent = thanksText;
+        createSideConfetti();
+      });
+
+      // Air-hockey style animation for No button with friction & only cursor-driven movement
+      let lastTime = null;
+
+      function animate(timestamp) {
+        if (!lastTime) lastTime = timestamp;
+        const dt = (timestamp - lastTime) / 16.67; // ~1 at 60fps
+        lastTime = timestamp;
+
+        if (!noState.frozen) {
+          const padding = 8;
+          const minX = padding;
+          const minY = padding + 24;
+          const maxX = widgetWidth - noSize.w - padding;
+          const maxY = widgetHeight - noSize.h - padding - 26;
+
+          if (mouse.inside) {
+            const centerX = noState.x + noSize.w / 2;
+            const centerY = noState.y + noSize.h / 2;
+            const dx = centerX - mouse.x;
+            const dy = centerY - mouse.y;
+            const dist = Math.hypot(dx, dy);
+
+            const panicRadius = 70;   // fast dodge zone
+            const nearRadius = 140;   // push-but-not-panic zone
+
+            if (dist < panicRadius && dist > 0.0001) {
+              const dirX = dx / dist;
+              const dirY = dy / dist;
+              noState.vx = dirX * noState.panicSpeed;
+              noState.vy = dirY * noState.panicSpeed;
+              noBtn.classList.add("no-panic");
+            } else if (dist < nearRadius && dist > 0.0001) {
+              const dirX = dx / dist;
+              const dirY = dy / dist;
+              noState.vx = dirX * noState.baseSpeed;
+              noState.vy = dirY * noState.baseSpeed;
+              noBtn.classList.add("no-panic");
+            } else {
+              noBtn.classList.remove("no-panic");
+            }
+          }
+
+          // Apply friction so it naturally stops if the cursor stops pushing it
+          const friction = 0.9;
+          const frictionFactor = Math.pow(friction, dt);
+          noState.vx *= frictionFactor;
+          noState.vy *= frictionFactor;
+
+          const speed = Math.hypot(noState.vx, noState.vy);
+          if (speed < 0.02) {
+            noState.vx = 0;
+            noState.vy = 0;
+          }
+
+          noState.x += noState.vx * dt;
+          noState.y += noState.vy * dt;
+
+          // Bounce off edges
+          if (noState.x <= minX) {
+            noState.x = minX;
+            noState.vx = Math.abs(noState.vx);
+          } else if (noState.x >= maxX) {
+            noState.x = maxX;
+            noState.vx = -Math.abs(noState.vx);
+          }
+
+          if (noState.y <= minY) {
+            noState.y = minY;
+            noState.vy = Math.abs(noState.vy);
+          } else if (noState.y >= maxY) {
+            noState.y = maxY;
+            noState.vy = -Math.abs(noState.vy);
+          }
+
+          // Prevent the cursor from ever truly "hovering" over the No button:
+          // if the mouse is too close to the button center, shove it away further.
+          if (mouse.inside) {
+            const centerX2 = noState.x + noSize.w / 2;
+            const centerY2 = noState.y + noSize.h / 2;
+            let dx2 = centerX2 - mouse.x;
+            let dy2 = centerY2 - mouse.y;
+            let dist2 = Math.hypot(dx2, dy2);
+            const safeRadius = Math.max(noSize.w, noSize.h) * 0.7 + 10;
+
+            if (dist2 < safeRadius && dist2 > 0.0001) {
+              const dirX = dx2 / dist2;
+              const dirY = dy2 / dist2;
+              const push = (safeRadius - dist2) + 6;
+              noState.x += dirX * push;
+              noState.y += dirY * push;
+
+              // Keep within bounds after push
+              noState.x = Math.min(Math.max(noState.x, minX), maxX);
+              noState.y = Math.min(Math.max(noState.y, minY), maxY);
+            }
+          }
+
+          applyNoPosition();
+        }
+
+        requestAnimationFrame(animate);
+      }
+
+      window.addEventListener("resize", () => {
+        // Recenter gently on resize to fit new bounds, if the parent changes
+        centerButtons();
+      });
+
+      // Initialize
+      window.addEventListener("DOMContentLoaded", () => {
+        updateBounds();
+        centerButtons();
+        requestAnimationFrame(animate);
+      });
+    })();
+  </script>
+</body>
+</html>
